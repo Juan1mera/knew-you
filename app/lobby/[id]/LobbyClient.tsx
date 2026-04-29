@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { subscribeToSession } from '@/src/lib/services/session';
+import { subscribeToSession, startGame } from '@/src/lib/services/session';
 import { Session, Participant } from '@/src/types';
 import { Users, Copy, CheckCircle2, Play, AlertCircle, Crown, User } from 'lucide-react';
 
@@ -36,6 +36,12 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
     return () => unsubscribe();
   }, [sessionId]);
 
+  useEffect(() => {
+    if (session?.status === 'phase1') {
+      router.push(`/play/${sessionId}`);
+    }
+  }, [session?.status, sessionId, router]);
+
   const copyCode = () => {
     if (session?.shortCode) {
       navigator.clipboard.writeText(session.shortCode);
@@ -44,10 +50,15 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
     }
   };
 
-  const handleStartGame = () => {
-    // Implement game start logic (update session status to phase1)
-    // For now, just alert
-    alert('Esta funcionalidad será implementada en el siguiente paso (Fase 1).');
+  const handleStartGame = async () => {
+    try {
+      setLoading(true);
+      await startGame(sessionId);
+    } catch (err) {
+      console.error(err);
+      setError('Error al iniciar el juego.');
+      setLoading(false);
+    }
   };
 
   if (loading) {

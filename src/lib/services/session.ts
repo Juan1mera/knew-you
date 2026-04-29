@@ -10,7 +10,8 @@ import {
   arrayUnion, 
   onSnapshot
 } from 'firebase/firestore';
-import { Session, Participant } from '@/src/types';
+import { Session, Participant, SessionStatus } from '@/src/types';
+import { getDefaultTest } from './test';
 
 // Generate a random 6-character alphanumeric code
 const generateShortCode = () => {
@@ -84,5 +85,19 @@ export const subscribeToSession = (sessionId: string, callback: (session: Sessio
     } else {
       callback(null);
     }
+  });
+};
+
+export const updateSessionStatus = async (sessionId: string, status: SessionStatus) => {
+  await updateDoc(doc(db, 'sessions', sessionId), {
+    status
+  });
+};
+
+export const startGame = async (sessionId: string) => {
+  const test = await getDefaultTest();
+  await updateDoc(doc(db, 'sessions', sessionId), {
+    status: 'phase1',
+    test_id: test.id
   });
 };
