@@ -38,3 +38,19 @@ export interface Answer {
   question_id: string;
   answer_value: string;
 }
+
+export interface MatchResult {
+  question_id: string;
+  target_user_id: string;
+  target_name: string;
+  guessed_answer: string;
+  correct_answer: string;
+  is_correct: boolean;
+}
+
+export interface PlayerScore {
+  user_id: string;
+  name: string;
+  score: number;
+  matches: MatchResult[];
+}

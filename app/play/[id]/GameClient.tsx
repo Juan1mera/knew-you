@@ -8,10 +8,11 @@ import {
   submitAnswers, 
   checkPhase1Completion, 
   checkPhase2Completion,
-  getCompletedTargetsForUser 
+  getCompletedTargetsForUser,
+  calculateResults
 } from '@/src/lib/services/test';
-import { Session, Test, Question } from '@/src/types';
-import { Loader2, AlertCircle, CheckCircle, Send, Users, UserCircle2, ArrowLeft } from 'lucide-react';
+import { Session, Test, Question, PlayerScore } from '@/src/types';
+import { Loader2, AlertCircle, CheckCircle, Send, Users, UserCircle2, ArrowLeft, Trophy, Crown, Medal, XCircle, CheckCircle2 } from 'lucide-react';
 
 export default function GameClient({ sessionId }: { sessionId: string }) {
   const router = useRouter();
@@ -32,6 +33,9 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
   const [currentTargetId, setCurrentTargetId] = useState<string | null>(null);
   const [phase2Loading, setPhase2Loading] = useState(false);
 
+  // Phase 3 specific state
+  const [leaderboard, setLeaderboard] = useState<PlayerScore[] | null>(null);
+
   useEffect(() => {
     const storedId = localStorage.getItem('knewyou_user_id');
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -48,13 +52,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
           setTest(testData);
         }
 
-        if (sessionData.status === 'phase3') {
-          // Placeholder for phase3 transition
-          setLoading(false);
-        } else {
-          setLoading(false);
-        }
-
+        setLoading(false);
       } else {
         setError('Sesión no encontrada o ha sido eliminada.');
         setLoading(false);
@@ -81,6 +79,21 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     };
     loadPhase2Data();
   }, [session?.status, currentUserId, sessionId]);
+
+  // Load results when phase 3 starts
+  useEffect(() => {
+    const fetchResults = async () => {
+      if (session?.status === 'phase3' && session.participants.length > 0) {
+        try {
+          const results = await calculateResults(sessionId, session.participants);
+          setLeaderboard(results);
+        } catch (e) {
+          console.error("Error calculating results", e);
+        }
+      }
+    };
+    fetchResults();
+  }, [session?.status, sessionId, session?.participants]);
 
   // Host checker for Phase 1 completion
   useEffect(() => {
@@ -203,18 +216,141 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     );
   }
 
+  // --- RENDERING PHASE 3 ---
   if (session.status === 'phase3') {
-    return (
-      <div className="glass-card p-12 text-center animate-in zoom-in duration-500 max-w-2xl mx-auto">
-        <div className="w-20 h-20 bg-primary-500/20 text-primary-400 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Users className="w-10 h-10" />
+    if (!leaderboard || !test) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12">
+          <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
+          <p className="text-slate-400 font-medium">Calculando resultados...</p>
         </div>
-        <h1 className="text-4xl font-black text-white mb-4">¡Fase 3: Resultados!</h1>
-        <p className="text-lg text-slate-300">
-          La partida ha terminado. ¡Hora de ver quién conoce mejor a quién!
-          <br /><br />
-          <span className="text-primary-400 font-semibold">(Próximamente...)</span>
-        </p>
+      );
+    }
+
+    const myScore = leaderboard.find(p => p.user_id === currentUserId);
+    const getQuestionText = (qId: string) => test.questions.find(q => q.id === qId)?.text || 'Pregunta';
+
+    return (
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto space-y-12 pb-12">
+        <div className="text-center">
+          <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-6" />
+          <h1 className="text-5xl font-black text-white mb-4">Resultados Finales</h1>
+          <p className="text-xl text-slate-300">
+            Veamos quién conoce mejor al grupo.
+          </p>
+        </div>
+
+        {/* Leaderboard */}
+        <div className="glass-card overflow-hidden">
+          <div className="bg-white/5 px-6 py-4 border-b border-white/5">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Medal className="w-6 h-6 text-primary-400" />
+              Tabla de Posiciones
+            </h2>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {leaderboard.map((player, index) => (
+                <div 
+                  key={player.user_id} 
+                  className={`
+                    relative overflow-hidden flex items-center justify-between p-4 rounded-xl border transition-all
+                    ${index === 0 
+                      ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]' 
+                      : index === 1
+                        ? 'bg-gradient-to-r from-slate-300/10 to-slate-400/10 border-slate-300/30'
+                        : index === 2
+                          ? 'bg-gradient-to-r from-orange-700/20 to-orange-800/20 border-orange-700/30'
+                          : 'bg-white/5 border-white/5'
+                    }
+                    ${player.user_id === currentUserId ? 'ring-2 ring-primary-500' : ''}
+                  `}
+                >
+                  <div className="flex items-center gap-4 z-10">
+                    <div className={`
+                      w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
+                      ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}
+                    `}>
+                      {index === 0 ? <Crown className="w-5 h-5" /> : index + 1}
+                    </div>
+                    <div>
+                      <span className="text-xl font-bold text-white block">
+                        {player.name} {player.user_id === currentUserId && <span className="text-sm font-normal text-primary-300 ml-2">(Tú)</span>}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="z-10 text-right">
+                    <span className="text-3xl font-black text-white">{player.score}</span>
+                    <span className="text-sm text-slate-400 block -mt-1">Puntos</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown */}
+        {myScore && myScore.matches.length > 0 && (
+          <div className="glass-card overflow-hidden">
+            <div className="bg-white/5 px-6 py-4 border-b border-white/5">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <Users className="w-6 h-6 text-secondary-400" />
+                Tu Desglose
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid gap-4">
+                {myScore.matches.map((match, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`
+                      p-5 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4
+                      ${match.is_correct ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}
+                    `}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {match.is_correct ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                        )}
+                        <h4 className="font-bold text-white">Sobre {match.target_name}</h4>
+                      </div>
+                      <p className="text-slate-300 text-sm mb-3">
+                        {getQuestionText(match.question_id)}
+                      </p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-black/30 p-3 rounded-lg border border-white/5">
+                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">Tu Adivinanza</span>
+                          <span className={`font-medium ${match.is_correct ? 'text-green-300' : 'text-red-300'}`}>
+                            {match.guessed_answer}
+                          </span>
+                        </div>
+                        <div className="bg-black/30 p-3 rounded-lg border border-white/5">
+                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">Respuesta Real</span>
+                          <span className="font-medium text-white">
+                            {match.correct_answer}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className="text-center pt-8">
+          <button 
+            onClick={() => router.push('/')}
+            className="inline-flex items-center justify-center py-4 px-10 border border-white/10 rounded-xl text-lg font-bold text-white bg-white/5 hover:bg-white/10 transition-colors"
+          >
+            Volver al Inicio y Jugar de Nuevo
+          </button>
+        </div>
       </div>
     );
   }

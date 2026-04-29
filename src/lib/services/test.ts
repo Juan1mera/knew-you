@@ -8,7 +8,7 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { Test, Answer } from '@/src/types';
+import { Test, Answer, Participant, PlayerScore } from '@/src/types';
 
 const DEFAULT_TEST_ID = 'default_test_01';
 
@@ -179,4 +179,67 @@ export const checkPhase2Completion = async (
   const totalExpectedGuesses = participantsCount * (participantsCount - 1) * testQuestionCount;
 
   return guessAnswers.length >= totalExpectedGuesses;
+};
+
+/**
+ * Processes all answers and calculates the final scores for each participant.
+ */
+export const calculateResults = async (
+  sessionId: string,
+  participants: Participant[]
+): Promise<PlayerScore[]> => {
+  const q = query(collection(db, 'answers'), where('session_id', '==', sessionId));
+  const querySnapshot = await getDocs(q);
+  const allAnswers = querySnapshot.docs.map(d => d.data() as Answer);
+
+  // Map to quickly find self-evaluations (correct answers)
+  // Structure: { [target_user_id]: { [question_id]: answer_value } }
+  const correctAnswers: Record<string, Record<string, string>> = {};
+  
+  allAnswers.forEach(ans => {
+    if (ans.user_id === ans.target_user_id) {
+      if (!correctAnswers[ans.target_user_id]) correctAnswers[ans.target_user_id] = {};
+      correctAnswers[ans.target_user_id][ans.question_id] = ans.answer_value;
+    }
+  });
+
+  const participantMap = new Map<string, Participant>();
+  participants.forEach(p => participantMap.set(p.id, p));
+
+  const scoresMap: Record<string, PlayerScore> = {};
+  participants.forEach(p => {
+    scoresMap[p.id] = {
+      user_id: p.id,
+      name: p.name,
+      score: 0,
+      matches: []
+    };
+  });
+
+  allAnswers.forEach(ans => {
+    // We only evaluate guesses (user_id !== target_user_id)
+    if (ans.user_id !== ans.target_user_id && scoresMap[ans.user_id]) {
+      const correctVal = correctAnswers[ans.target_user_id]?.[ans.question_id];
+      if (correctVal !== undefined) {
+        // Compare values case-insensitively and trimmed
+        const isCorrect = ans.answer_value.trim().toLowerCase() === correctVal.trim().toLowerCase();
+        
+        if (isCorrect) {
+          scoresMap[ans.user_id].score += 1;
+        }
+
+        scoresMap[ans.user_id].matches.push({
+          question_id: ans.question_id,
+          target_user_id: ans.target_user_id,
+          target_name: participantMap.get(ans.target_user_id)?.name || 'Desconocido',
+          guessed_answer: ans.answer_value,
+          correct_answer: correctVal,
+          is_correct: isCorrect
+        });
+      }
+    }
+  });
+
+  // Convert to array and sort by score descending
+  return Object.values(scoresMap).sort((a, b) => b.score - a.score);
 };
