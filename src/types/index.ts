@@ -1,4 +1,4 @@
-export type SessionStatus = 'waiting' | 'phase1' | 'phase2' | 'finished';
+export type SessionStatus = 'waiting' | 'phase1' | 'phase2' | 'phase3' | 'finished';
 
 export interface Participant {
   id: string; // Auto-generated ID for the participant
