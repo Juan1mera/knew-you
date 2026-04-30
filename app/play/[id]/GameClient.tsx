@@ -3,353 +3,256 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { subscribeToSession, updateSessionStatus } from '@/src/lib/services/session';
-import { 
-  getTestById, 
-  submitAnswers, 
-  checkPhase1Completion, 
-  checkPhase2Completion,
-  getCompletedTargetsForUser,
-  calculateResults
+import {
+  getTestById, submitAnswers, checkPhase1Completion,
+  checkPhase2Completion, getCompletedTargetsForUser, calculateResults
 } from '@/src/lib/services/test';
 import { Session, Test, Question, PlayerScore } from '@/src/types';
-import { Loader2, AlertCircle, CheckCircle, Send, Users, UserCircle2, ArrowLeft, Trophy, Crown, Medal, XCircle, CheckCircle2 } from 'lucide-react';
+import {
+  Loader2, AlertCircle, CheckCircle, Send, Users,
+  UserCircle2, ArrowLeft, Trophy, Crown, Medal, XCircle, CheckCircle2
+} from 'lucide-react';
 import { useLanguage } from '@/src/lib/i18n';
+
+/* ── Shared mini-components ───────────────────────── */
+const S = {
+  // Spinner
+  spinner: (size = 40) => (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      border: '3px solid var(--border-default)',
+      borderTopColor: 'var(--accent)',
+      animation: 'spin 0.8s linear infinite',
+    }} />
+  ),
+  // Phase badge
+  badge: (label: string, warm = false) => (
+    <span className={warm ? 'tag tag-warm' : 'tag'} style={{ marginBottom: 12, display: 'inline-block' }}>
+      {label}
+    </span>
+  ),
+  // Wait box
+  waitBox: (label: string) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '12px 20px', background: 'var(--accent-light)',
+      border: '1px solid var(--accent-muted)', borderRadius: 10,
+      color: 'var(--accent)', fontWeight: 600, width: 'fit-content', margin: '0 auto',
+    }}>
+      <Loader2 style={{ width: 18, height: 18, animation: 'spin 0.8s linear infinite' }} />
+      {label}
+    </div>
+  ),
+};
 
 export default function GameClient({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const { t } = useLanguage();
   const [session, setSession] = useState<Session | null>(null);
   const [test, setTest] = useState<Test | null>(null);
-  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
-  // Phase 1 specific state
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
-
-  // Phase 2 specific state
   const [completedTargets, setCompletedTargets] = useState<string[]>([]);
   const [currentTargetId, setCurrentTargetId] = useState<string | null>(null);
   const [phase2Loading, setPhase2Loading] = useState(false);
-
-  // Phase 3 specific state
   const [leaderboard, setLeaderboard] = useState<PlayerScore[] | null>(null);
 
   useEffect(() => {
-    const storedId = localStorage.getItem('knewyou_user_id');
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCurrentUserId(storedId);
+    setCurrentUserId(localStorage.getItem('knewyou_user_id'));
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToSession(sessionId, async (sessionData) => {
-      if (sessionData) {
-        setSession(sessionData);
-        
-        if (sessionData.test_id && !test) {
-          const testData = await getTestById(sessionData.test_id);
-          setTest(testData);
-        }
-
+    const unsub = subscribeToSession(sessionId, async (data) => {
+      if (data) {
+        setSession(data);
+        if (data.test_id && !test) setTest(await getTestById(data.test_id));
         setLoading(false);
-      } else {
-        setError(t('sessionNotFound'));
-        setLoading(false);
-      }
+      } else { setError(t('sessionNotFound')); setLoading(false); }
     });
-
-    return () => unsubscribe();
+    return () => unsub();
   }, [sessionId, test]);
 
-  // Load completed targets when phase 2 starts
   useEffect(() => {
-    const loadPhase2Data = async () => {
-      if (session?.status === 'phase2' && currentUserId) {
-        setPhase2Loading(true);
-        try {
-          const targets = await getCompletedTargetsForUser(sessionId, currentUserId);
-          setCompletedTargets(targets);
-        } catch (e) {
-          console.error("Error loading completed targets", e);
-        } finally {
-          setPhase2Loading(false);
-        }
-      }
-    };
-    loadPhase2Data();
+    if (session?.status !== 'phase2' || !currentUserId) return;
+    setPhase2Loading(true);
+    getCompletedTargetsForUser(sessionId, currentUserId)
+      .then(setCompletedTargets).catch(console.error).finally(() => setPhase2Loading(false));
   }, [session?.status, currentUserId, sessionId]);
 
-  // Load results when phase 3 starts
   useEffect(() => {
-    const fetchResults = async () => {
-      if (session?.status === 'phase3' && session.participants.length > 0) {
-        try {
-          const results = await calculateResults(sessionId, session.participants);
-          setLeaderboard(results);
-        } catch (e) {
-          console.error("Error calculating results", e);
-        }
-      }
-    };
-    fetchResults();
+    if (session?.status !== 'phase3' || !session.participants.length) return;
+    calculateResults(sessionId, session.participants).then(setLeaderboard).catch(console.error);
   }, [session?.status, sessionId, session?.participants]);
 
-  // Host checker for Phase 1 completion
   useEffect(() => {
-    let checkInterval: NodeJS.Timeout;
-    if (session?.status === 'phase1' && test && currentUserId === session.host_id) {
-      checkInterval = setInterval(async () => {
-        try {
-          const isComplete = await checkPhase1Completion(
-            sessionId, 
-            session.participants.length, 
-            test.questions.length
-          );
-          if (isComplete) {
-            await updateSessionStatus(sessionId, 'phase2');
-            clearInterval(checkInterval);
-          }
-        } catch (e) {
-          console.error('Error checking phase 1 completion', e);
-        }
-      }, 3000);
-    }
-    return () => clearInterval(checkInterval);
+    if (session?.status !== 'phase1' || !test || currentUserId !== session.host_id) return;
+    const iv = setInterval(async () => {
+      const done = await checkPhase1Completion(sessionId, session.participants.length, test.questions.length).catch(() => false);
+      if (done) { await updateSessionStatus(sessionId, 'phase2'); clearInterval(iv); }
+    }, 3000);
+    return () => clearInterval(iv);
   }, [session, test, currentUserId, sessionId]);
 
-  // Host checker for Phase 2 completion
   useEffect(() => {
-    let checkInterval: NodeJS.Timeout;
-    if (session?.status === 'phase2' && test && currentUserId === session.host_id) {
-      checkInterval = setInterval(async () => {
-        try {
-          const isComplete = await checkPhase2Completion(
-            sessionId, 
-            session.participants.length, 
-            test.questions.length
-          );
-          if (isComplete) {
-            await updateSessionStatus(sessionId, 'phase3');
-            clearInterval(checkInterval);
-          }
-        } catch (e) {
-          console.error('Error checking phase 2 completion', e);
-        }
-      }, 3000);
-    }
-    return () => clearInterval(checkInterval);
+    if (session?.status !== 'phase2' || !test || currentUserId !== session.host_id) return;
+    const iv = setInterval(async () => {
+      const done = await checkPhase2Completion(sessionId, session.participants.length, test.questions.length).catch(() => false);
+      if (done) { await updateSessionStatus(sessionId, 'phase3'); clearInterval(iv); }
+    }, 3000);
+    return () => clearInterval(iv);
   }, [session, test, currentUserId, sessionId]);
 
-  const handleAnswerChange = (questionId: string, value: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
-  };
+  const handleAnswerChange = (qId: string, v: string) => setAnswers(p => ({ ...p, [qId]: v }));
 
   const handleSubmitPhase1 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!test || !currentUserId) return;
-    
-    const unanswered = test.questions.filter(q => !answers[q.id]);
-    if (unanswered.length > 0) {
-      alert(t('pleaseAnswerAll'));
-      return;
-    }
-
+    if (test.questions.some(q => !answers[q.id])) { alert(t('pleaseAnswerAll')); return; }
     setIsSubmitting(true);
-    try {
-      await submitAnswers(sessionId, currentUserId, currentUserId, answers);
-      setHasSubmitted(true);
-    } catch (err) {
-      console.error(err);
-      alert(t('errorSubmitting'));
-    } finally {
-      setIsSubmitting(false);
-    }
+    try { await submitAnswers(sessionId, currentUserId, currentUserId, answers); setHasSubmitted(true); }
+    catch { alert(t('errorSubmitting')); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleSubmitPhase2 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!test || !currentUserId || !currentTargetId) return;
-    
-    const unanswered = test.questions.filter(q => !answers[q.id]);
-    if (unanswered.length > 0) {
-      alert(t('pleaseAnswerAll'));
-      return;
-    }
-
+    if (test.questions.some(q => !answers[q.id])) { alert(t('pleaseAnswerAll')); return; }
     setIsSubmitting(true);
     try {
       await submitAnswers(sessionId, currentUserId, currentTargetId, answers);
-      setCompletedTargets(prev => [...prev, currentTargetId]);
-      setCurrentTargetId(null);
-      setAnswers({}); // reset answers for the next target
-    } catch (err) {
-      console.error(err);
-      alert(t('errorSubmitting'));
-    } finally {
-      setIsSubmitting(false);
-    }
+      setCompletedTargets(p => [...p, currentTargetId]);
+      setCurrentTargetId(null); setAnswers({});
+    } catch { alert(t('errorSubmitting')); }
+    finally { setIsSubmitting(false); }
   };
 
-  if (loading || !session) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-        <p className="text-slate-400 font-medium">{t('loadingGame')}</p>
-      </div>
-    );
-  }
+  /* ── Loading / Error ─────────────────────────── */
+  if (loading || !session) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 64 }}>
+      {S.spinner()}<p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('loadingGame')}</p>
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="glass-card p-8 text-center max-w-md mx-auto">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">{t('error')}</h2>
-        <p className="text-slate-400 mb-6">{error}</p>
-        <button 
-          onClick={() => router.push('/')}
-          className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-medium"
-        >
-          {t('backToHome')}
-        </button>
-      </div>
-    );
-  }
+  if (error) return (
+    <div className="paper-card" style={{ padding: 40, textAlign: 'center', maxWidth: 400, margin: '0 auto' }}>
+      <AlertCircle style={{ width: 44, height: 44, color: 'var(--error)', margin: '0 auto 16px' }} />
+      <h2 style={{ fontWeight: 700, marginBottom: 8 }}>{t('error')}</h2>
+      <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>{error}</p>
+      <button className="btn-ghost" onClick={() => router.push('/')}>{t('backToHome')}</button>
+    </div>
+  );
 
-  // --- RENDERING PHASE 3 ---
+  /* ── PHASE 3 ─────────────────────────────────── */
   if (session.status === 'phase3') {
-    if (!leaderboard || !test) {
-      return (
-        <div className="flex flex-col items-center justify-center p-12">
-          <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-          <p className="text-slate-400 font-medium">{t('calculatingResults')}</p>
-        </div>
-      );
-    }
+    if (!leaderboard || !test) return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 64 }}>
+        {S.spinner()}<p style={{ color: 'var(--text-muted)' }}>{t('calculatingResults')}</p>
+      </div>
+    );
 
     const myScore = leaderboard.find(p => p.user_id === currentUserId);
-    const getQuestionText = (qId: string) => test.questions.find(q => q.id === qId)?.text || 'Pregunta';
+    const getQ = (id: string) => test.questions.find(q => q.id === id)?.text || '';
 
     return (
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto space-y-12 pb-12">
-        <div className="text-center">
-          <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-6" />
-          <h1 className="text-5xl font-black text-white mb-4">{t('finalResults')}</h1>
-          <p className="text-xl text-slate-300">
-            {t('finalResultsSubtitle')}
-          </p>
+      <div className="animate-in fade-in duration-500" style={{ maxWidth: 720, margin: '0 auto', paddingBottom: 64 }}>
+        {/* Hero */}
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <Trophy style={{ width: 56, height: 56, color: 'var(--gold)', margin: '0 auto 16px' }} />
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '2.5rem', fontWeight: 500, marginBottom: 8 }}>
+            {t('finalResults')}
+          </h1>
+          <p style={{ color: 'var(--text-secondary)' }}>{t('finalResultsSubtitle')}</p>
         </div>
 
         {/* Leaderboard */}
-        <div className="glass-card overflow-hidden">
-          <div className="bg-white/5 px-6 py-4 border-b border-white/5">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <Medal className="w-6 h-6 text-primary-400" />
-              {t('leaderboard')}
-            </h2>
+        <div className="paper-card" style={{ overflow: 'hidden', marginBottom: 32 }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-muted)', background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Medal style={{ width: 18, height: 18, color: 'var(--accent)' }} />
+            <span style={{ fontWeight: 600 }}>{t('leaderboard')}</span>
           </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {leaderboard.map((player, index) => (
-                <div 
-                  key={player.user_id} 
-                  className={`
-                    relative overflow-hidden flex items-center justify-between p-4 rounded-xl border transition-all
-                    ${index === 0 
-                      ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]' 
-                      : index === 1
-                        ? 'bg-gradient-to-r from-slate-300/10 to-slate-400/10 border-slate-300/30'
-                        : index === 2
-                          ? 'bg-gradient-to-r from-orange-700/20 to-orange-800/20 border-orange-700/30'
-                          : 'bg-white/5 border-white/5'
-                    }
-                    ${player.user_id === currentUserId ? 'ring-2 ring-primary-500' : ''}
-                  `}
-                >
-                  <div className="flex items-center gap-4 z-10">
-                    <div className={`
-                      w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
-                      ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}
-                    `}>
-                      {index === 0 ? <Crown className="w-5 h-5" /> : index + 1}
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {leaderboard.map((player, i) => {
+              const isMe = player.user_id === currentUserId;
+              const podiumBg = i === 0 ? '#fef9e8' : i === 1 ? '#f5f5f5' : i === 2 ? '#fef3e8' : 'var(--bg-subtle)';
+              const podiumBorder = i === 0 ? '#f0d060' : i === 1 ? '#c0c0c0' : i === 2 ? '#d4906a' : 'var(--border-muted)';
+              return (
+                <div key={player.user_id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 18px', borderRadius: 10,
+                  background: podiumBg, border: `1px solid ${podiumBorder}`,
+                  outline: isMe ? '2px solid var(--accent)' : 'none',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: i === 0 ? 'var(--gold)' : 'var(--bg-card)',
+                      border: '1px solid var(--border-default)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 700, color: i === 0 ? '#fff' : 'var(--text-secondary)',
+                    }}>
+                      {i === 0 ? <Crown style={{ width: 16, height: 16 }} /> : i + 1}
                     </div>
-                    <div>
-                      <span className="text-xl font-bold text-white block">
-                        {player.name} {player.user_id === currentUserId && <span className="text-sm font-normal text-primary-300 ml-2">({t('you')})</span>}
-                      </span>
-                    </div>
+                    <span style={{ fontWeight: 600, fontSize: '1rem' }}>
+                      {player.name}
+                      {isMe && <span style={{ color: 'var(--accent)', fontWeight: 400, fontSize: '0.8rem', marginLeft: 6 }}>({t('you')})</span>}
+                    </span>
                   </div>
-                  <div className="z-10 text-right">
-                    <span className="text-3xl font-black text-white">{player.score}</span>
-                    <span className="text-sm text-slate-400 block -mt-1">{t('points')}</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>{player.score}</span>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: -2 }}>{t('points')}</span>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Breakdown */}
         {myScore && myScore.matches.length > 0 && (
-          <div className="glass-card overflow-hidden">
-            <div className="bg-white/5 px-6 py-4 border-b border-white/5">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                <Users className="w-6 h-6 text-secondary-400" />
-                {t('yourBreakdown')}
-              </h2>
+          <div className="paper-card" style={{ overflow: 'hidden', marginBottom: 32 }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-muted)', background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Users style={{ width: 18, height: 18, color: 'var(--accent)' }} />
+              <span style={{ fontWeight: 600 }}>{t('yourBreakdown')}</span>
             </div>
-            <div className="p-6">
-              <div className="grid gap-4">
-                {myScore.matches.map((match, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`
-                      p-5 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4
-                      ${match.is_correct ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}
-                    `}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {match.is_correct ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-400 shrink-0" />
-                        )}
-                        <h4 className="font-bold text-white">{t('about')} {match.target_name}</h4>
-                      </div>
-                      <p className="text-slate-300 text-sm mb-3">
-                        {getQuestionText(match.question_id)}
-                      </p>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">{t('yourGuess')}</span>
-                          <span className={`font-medium ${match.is_correct ? 'text-green-300' : 'text-red-300'}`}>
-                            {match.guessed_answer}
-                          </span>
-                        </div>
-                        <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">{t('realAnswer')}</span>
-                          <span className="font-medium text-white">
-                            {match.correct_answer}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {myScore.matches.map((m, idx) => (
+                <div key={idx} style={{
+                  padding: '16px 18px', borderRadius: 10,
+                  background: m.is_correct ? '#f0faf4' : '#fdf4f2',
+                  border: `1px solid ${m.is_correct ? '#a8d8b8' : '#e8c0b8'}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    {m.is_correct
+                      ? <CheckCircle2 style={{ width: 16, height: 16, color: 'var(--success)', flexShrink: 0 }} />
+                      : <XCircle style={{ width: 16, height: 16, color: 'var(--error)', flexShrink: 0 }} />}
+                    <strong style={{ fontSize: '0.9rem' }}>{t('about')} {m.target_name}</strong>
                   </div>
-                ))}
-              </div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: 10 }}>{getQ(m.question_id)}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {[
+                      { label: t('yourGuess'), val: m.guessed_answer, ok: m.is_correct },
+                      { label: t('realAnswer'), val: m.correct_answer, ok: true },
+                    ].map(({ label, val, ok }) => (
+                      <div key={label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-muted)', borderRadius: 8, padding: '10px 12px' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>{label}</span>
+                        <span style={{ fontWeight: 600, color: ok ? 'var(--text-primary)' : 'var(--error)' }}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
-        
-        <div className="text-center pt-8">
-          <button 
-            onClick={() => router.push('/')}
-            className="inline-flex items-center justify-center py-4 px-10 border border-white/10 rounded-xl text-lg font-bold text-white bg-white/5 hover:bg-white/10 transition-colors"
-          >
+
+        <div style={{ textAlign: 'center' }}>
+          <button className="btn-ghost" onClick={() => router.push('/')} style={{ padding: '14px 32px', fontSize: '1rem' }}>
             {t('backToHomeAndPlayAgain')}
           </button>
         </div>
@@ -357,296 +260,188 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     );
   }
 
-  // --- RENDERING PHASE 2 ---
+  /* ── PHASE 2 ─────────────────────────────────── */
   if (session.status === 'phase2') {
-    if (phase2Loading || !test) {
-      return (
-        <div className="flex flex-col items-center justify-center p-12">
-          <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-          <p className="text-slate-400 font-medium">{t('preparingRound')}</p>
+    if (phase2Loading || !test) return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 64 }}>
+        {S.spinner()}<p style={{ color: 'var(--text-muted)' }}>{t('preparingRound')}</p>
+      </div>
+    );
+
+    const others = session.participants.filter(p => p.id !== currentUserId);
+    const allDone = others.every(p => completedTargets.includes(p.id));
+
+    if (allDone) return (
+      <div className="paper-card anim-scale-in" style={{ padding: 56, textAlign: 'center', maxWidth: 400, margin: '0 auto' }}>
+        <CheckCircle style={{ width: 52, height: 52, color: 'var(--success)', margin: '0 auto 20px' }} />
+        <h2 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.75rem', marginBottom: 10 }}>{t('roundCompleted')}</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 28 }}>{t('roundCompletedSubtitle')}</p>
+        {S.waitBox(t('waitingForOthers'))}
+      </div>
+    );
+
+    if (!currentTargetId) return (
+      <div className="animate-in fade-in duration-500" style={{ maxWidth: 560, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          {S.badge(t('phase2Title'), true)}
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '2.25rem', fontWeight: 500, marginBottom: 8 }}>{t('selectPlayer')}</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>{t('selectPlayerSubtitle')}</p>
         </div>
-      );
-    }
-
-    const otherParticipants = session.participants.filter(p => p.id !== currentUserId);
-    const allCompleted = otherParticipants.every(p => completedTargets.includes(p.id));
-
-    if (allCompleted) {
-      return (
-        <div className="glass-card p-12 text-center animate-in zoom-in duration-500 max-w-md mx-auto">
-          <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-6" />
-          <h2 className="text-3xl font-black text-white mb-4">{t('roundCompleted')}</h2>
-          <p className="text-slate-300 mb-8">
-            {t('roundCompletedSubtitle')}
-          </p>
-          <div className="flex justify-center items-center gap-3 text-primary-400 bg-primary-500/10 py-3 px-6 rounded-xl w-max mx-auto">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="font-semibold">{t('waitingForOthers')}</span>
-          </div>
-        </div>
-      );
-    }
-
-    if (!currentTargetId) {
-      return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
-          <div className="mb-8 text-center">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-secondary-500/20 text-secondary-300 font-bold text-sm tracking-wider uppercase mb-4 shadow-[0_0_15px_rgba(236,72,153,0.2)]">
-              {t('phase2Title')}
-            </span>
-            <h1 className="text-4xl font-black text-white mb-2">{t('selectPlayer')}</h1>
-            <p className="text-lg text-slate-400">
-              {t('selectPlayerSubtitle')}
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            {otherParticipants.map(p => {
-              const isDone = completedTargets.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => !isDone && setCurrentTargetId(p.id)}
-                  disabled={isDone}
-                  className={`
-                    w-full p-6 rounded-2xl flex items-center justify-between transition-all border
-                    ${isDone 
-                      ? 'bg-white/5 border-white/5 opacity-60 cursor-not-allowed' 
-                      : 'glass-card hover:-translate-y-1 hover:shadow-primary-500/20 hover:border-primary-500/50 cursor-pointer'}
-                  `}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-white">
-                      <UserCircle2 className="w-7 h-7" />
-                    </div>
-                    <span className="text-xl font-bold text-white">{p.name}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {others.map(p => {
+            const done = completedTargets.includes(p.id);
+            return (
+              <button key={p.id} id={`btn-guess-${p.id}`} onClick={() => !done && setCurrentTargetId(p.id)} disabled={done}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '18px 22px', borderRadius: 12, cursor: done ? 'not-allowed' : 'pointer',
+                  background: done ? 'var(--bg-subtle)' : 'var(--bg-card)',
+                  border: `1px solid ${done ? 'var(--border-muted)' : 'var(--border-default)'}`,
+                  opacity: done ? 0.6 : 1,
+                  transition: 'all 0.15s', width: '100%',
+                  boxShadow: done ? 'none' : 'var(--shadow-sm)',
+                }}
+                onMouseEnter={e => !done && ((e.currentTarget.style.borderColor = 'var(--accent)'), (e.currentTarget.style.transform = 'translateY(-1px)'))}
+                onMouseLeave={e => !done && ((e.currentTarget.style.borderColor = 'var(--border-default)'), (e.currentTarget.style.transform = 'none'))}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                    <UserCircle2 style={{ width: 22, height: 22 }} />
                   </div>
-                  {isDone ? (
-                    <div className="flex items-center gap-2 text-green-400">
-                      <CheckCircle className="w-6 h-6" />
-                      <span className="font-semibold hidden sm:inline">{t('completed')}</span>
-                    </div>
-                  ) : (
-                    <span className="text-primary-400 font-semibold">{t('guess')}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    // Guessing form
-    const targetUser = session.participants.find(p => p.id === currentTargetId);
-    
-    return (
-      <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-        <div className="mb-8 text-center relative max-w-3xl mx-auto">
-          <button 
-            onClick={() => {
-              setCurrentTargetId(null);
-              setAnswers({});
-            }}
-            className="absolute left-0 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <span className="inline-block px-4 py-1.5 rounded-full bg-secondary-500/20 text-secondary-300 font-bold text-sm tracking-wider uppercase mb-4 shadow-[0_0_15px_rgba(236,72,153,0.2)]">
-            {t('phase2')}
-          </span>
-          <h1 className="text-4xl font-black text-white mb-2">{t('guessingAbout')} {targetUser?.name}</h1>
-          <p className="text-lg text-slate-400">
-            {t('guessInstructions', { name: targetUser?.name || '' })}
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmitPhase2} className="space-y-6 max-w-3xl mx-auto">
-          {test.questions.map((question: Question, index: number) => (
-            <div key={question.id} className="glass-card p-6 md:p-8">
-              <h3 className="text-xl font-bold text-white mb-6 flex gap-3">
-                <span className="text-primary-400">{index + 1}.</span> 
-                {question.text}
-              </h3>
-              
-              {question.type === 'multiple_choice' && question.options && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {question.options.map((option, optIdx) => (
-                    <label 
-                      key={optIdx} 
-                      className={`
-                        cursor-pointer p-4 rounded-xl border transition-all flex items-center gap-3
-                        ${answers[question.id] === option 
-                          ? 'bg-primary-600 border-primary-500 shadow-[0_0_20px_rgba(139,92,246,0.3)]' 
-                          : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10'
-                        }
-                      `}
-                    >
-                      <input 
-                        type="radio" 
-                        name={question.id} 
-                        value={option}
-                        checked={answers[question.id] === option}
-                        onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                        className="hidden"
-                      />
-                      <div className={`
-                        w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
-                        ${answers[question.id] === option ? 'border-white' : 'border-slate-500'}
-                      `}>
-                        {answers[question.id] === option && <div className="w-3 h-3 bg-white rounded-full"></div>}
-                      </div>
-                      <span className={`font-medium ${answers[question.id] === option ? 'text-white' : 'text-slate-300'}`}>
-                        {option}
-                      </span>
-                    </label>
-                  ))}
+                  <span style={{ fontWeight: 600, fontSize: '1rem' }}>{p.name}</span>
                 </div>
-              )}
-
-              {question.type === 'free_response' && (
-                <textarea
-                  rows={3}
-                  placeholder={t('typeYourGuess', { name: targetUser?.name || '' })}
-                  value={answers[question.id] || ''}
-                  onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                  className="w-full p-4 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all resize-none"
-                />
-              )}
-            </div>
-          ))}
-
-          <div className="pt-6 pb-12">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full md:w-auto mx-auto flex items-center justify-center py-4 px-10 border border-transparent rounded-xl shadow-lg shadow-primary-500/20 text-lg font-bold text-white bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-500 hover:to-secondary-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
-                <>
-                  {t('confirmAnswers')}
-                  <Send className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    );
-  }
-
-  // --- RENDERING PHASE 1 ---
-  if (!test) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-        <p className="text-slate-400 font-medium">{t('loadingQuestions')}</p>
-      </div>
-    );
-  }
-
-  if (hasSubmitted) {
-    return (
-      <div className="glass-card p-12 text-center animate-in zoom-in duration-500 max-w-md mx-auto">
-        <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-6" />
-        <h2 className="text-3xl font-black text-white mb-4">{t('answersSubmitted')}</h2>
-        <p className="text-slate-300 mb-8">
-          {t('answersSubmittedSubtitle')}
-        </p>
-        <div className="flex justify-center items-center gap-3 text-primary-400 bg-primary-500/10 py-3 px-6 rounded-xl w-max mx-auto">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="font-semibold">{t('waitingForOthers')}</span>
+                {done
+                  ? <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--success)' }}><CheckCircle style={{ width: 18, height: 18 }} /><span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{t('completed')}</span></div>
+                  : <span style={{ color: 'var(--accent)', fontWeight: 600, fontSize: '0.875rem' }}>{t('guess')} →</span>
+                }
+              </button>
+            );
+          })}
         </div>
       </div>
     );
+
+    const targetUser = session.participants.find(p => p.id === currentTargetId);
+    return (
+      <div className="animate-in fade-in duration-500" style={{ maxWidth: 680, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', position: 'relative', marginBottom: 36 }}>
+          <button onClick={() => { setCurrentTargetId(null); setAnswers({}); }}
+            style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', padding: 8, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <ArrowLeft style={{ width: 22, height: 22 }} />
+          </button>
+          {S.badge(t('phase2'), true)}
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '2rem', fontWeight: 500, marginBottom: 6 }}>{t('guessingAbout')} {targetUser?.name}</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>{t('guessInstructions', { name: targetUser?.name || '' })}</p>
+        </div>
+        <QuestionForm questions={test.questions} answers={answers} onChange={handleAnswerChange}
+          onSubmit={handleSubmitPhase2} isSubmitting={isSubmitting} submitLabel={t('confirmAnswers')}
+          placeholderFn={(q) => q.type === 'free_response' ? t('typeYourGuess', { name: targetUser?.name || '' }) : ''} />
+      </div>
+    );
   }
+
+  /* ── PHASE 1 ─────────────────────────────────── */
+  if (!test) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 64 }}>
+      {S.spinner()}<p style={{ color: 'var(--text-muted)' }}>{t('loadingQuestions')}</p>
+    </div>
+  );
+
+  if (hasSubmitted) return (
+    <div className="paper-card anim-scale-in" style={{ padding: 56, textAlign: 'center', maxWidth: 400, margin: '0 auto' }}>
+      <CheckCircle style={{ width: 52, height: 52, color: 'var(--success)', margin: '0 auto 20px' }} />
+      <h2 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.75rem', marginBottom: 10 }}>{t('answersSubmitted')}</h2>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: 28 }}>{t('answersSubmittedSubtitle')}</p>
+      {S.waitBox(t('waitingForOthers'))}
+    </div>
+  );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-8 text-center">
-        <span className="inline-block px-4 py-1.5 rounded-full bg-primary-500/20 text-primary-300 font-bold text-sm tracking-wider uppercase mb-4 shadow-[0_0_15px_rgba(139,92,246,0.2)]">
-          {t('phase1')}
-        </span>
-        <h1 className="text-4xl font-black text-white mb-2">{test.title}</h1>
-        <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-          {t('phase1Instructions')}
-        </p>
+    <div className="animate-in fade-in duration-500" style={{ maxWidth: 680, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+        {S.badge(t('phase1'))}
+        <h1 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '2rem', fontWeight: 500, marginBottom: 6 }}>{test.title}</h1>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: '40ch', margin: '0 auto' }}>{t('phase1Instructions')}</p>
       </div>
-
-      <form onSubmit={handleSubmitPhase1} className="space-y-6 max-w-3xl mx-auto">
-        {test.questions.map((question: Question, index: number) => (
-          <div key={question.id} className="glass-card p-6 md:p-8">
-            <h3 className="text-xl font-bold text-white mb-6 flex gap-3">
-              <span className="text-primary-400">{index + 1}.</span> 
-              {question.text}
-            </h3>
-            
-            {question.type === 'multiple_choice' && question.options && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {question.options.map((option, optIdx) => (
-                  <label 
-                    key={optIdx} 
-                    className={`
-                      cursor-pointer p-4 rounded-xl border transition-all flex items-center gap-3
-                      ${answers[question.id] === option 
-                        ? 'bg-primary-600 border-primary-500 shadow-[0_0_20px_rgba(139,92,246,0.3)]' 
-                        : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10'
-                      }
-                    `}
-                  >
-                    <input 
-                      type="radio" 
-                      name={question.id} 
-                      value={option}
-                      checked={answers[question.id] === option}
-                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                      className="hidden"
-                    />
-                    <div className={`
-                      w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
-                      ${answers[question.id] === option ? 'border-white' : 'border-slate-500'}
-                    `}>
-                      {answers[question.id] === option && <div className="w-3 h-3 bg-white rounded-full"></div>}
-                    </div>
-                    <span className={`font-medium ${answers[question.id] === option ? 'text-white' : 'text-slate-300'}`}>
-                      {option}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {question.type === 'free_response' && (
-              <textarea
-                rows={3}
-                placeholder={t('typeYourAnswer')}
-                value={answers[question.id] || ''}
-                onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                className="w-full p-4 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all resize-none"
-              />
-            )}
-          </div>
-        ))}
-
-        <div className="pt-6 pb-12">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full md:w-auto mx-auto flex items-center justify-center py-4 px-10 border border-transparent rounded-xl shadow-lg shadow-primary-500/20 text-lg font-bold text-white bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-500 hover:to-secondary-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
-            ) : (
-              <>
-                {t('confirmAnswers')}
-                <Send className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </>
-            )}
-          </button>
-        </div>
-      </form>
+      <QuestionForm questions={test.questions} answers={answers} onChange={handleAnswerChange}
+        onSubmit={handleSubmitPhase1} isSubmitting={isSubmitting} submitLabel={t('confirmAnswers')}
+        placeholderFn={() => t('typeYourAnswer')} />
     </div>
+  );
+}
+
+/* ── QuestionForm shared component ───────────────── */
+function QuestionForm({ questions, answers, onChange, onSubmit, isSubmitting, submitLabel, placeholderFn }: {
+  questions: Question[];
+  answers: Record<string, string>;
+  onChange: (id: string, val: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  isSubmitting: boolean;
+  submitLabel: string;
+  placeholderFn: (q: Question) => string;
+}) {
+  return (
+    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48 }}>
+      {questions.map((q, i) => (
+        <div key={q.id} className="paper-card" style={{ padding: '28px 28px 24px' }}>
+          <h3 style={{ fontWeight: 600, fontSize: '1.0625rem', marginBottom: 18, display: 'flex', gap: 10, color: 'var(--text-primary)' }}>
+            <span style={{ color: 'var(--accent)', fontWeight: 700, minWidth: 24 }}>{i + 1}.</span>
+            {q.text}
+          </h3>
+
+          {q.type === 'multiple_choice' && q.options && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+              {q.options.map((opt, oi) => {
+                const sel = answers[q.id] === opt;
+                return (
+                  <label key={oi} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '13px 16px', borderRadius: 10, cursor: 'pointer',
+                    background: sel ? 'var(--accent-light)' : 'var(--bg-subtle)',
+                    border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border-muted)'}`,
+                    transition: 'all 0.15s',
+                  }}>
+                    <input type="radio" name={q.id} value={opt} checked={sel}
+                      onChange={e => onChange(q.id, e.target.value)} style={{ display: 'none' }} />
+                    <div style={{
+                      width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${sel ? 'var(--accent)' : 'var(--border-strong)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {sel && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />}
+                    </div>
+                    <span style={{ fontWeight: sel ? 600 : 400, color: sel ? 'var(--accent)' : 'var(--text-primary)', fontSize: '0.9375rem' }}>{opt}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {q.type === 'free_response' && (
+            <textarea rows={3} placeholder={placeholderFn(q)} value={answers[q.id] || ''}
+              onChange={e => onChange(q.id, e.target.value)}
+              style={{
+                width: '100%', padding: '12px 14px', resize: 'none',
+                background: 'var(--bg-input)', border: '1px solid var(--border-default)',
+                borderRadius: 10, fontFamily: 'var(--font-sans)', fontSize: '0.9375rem',
+                color: 'var(--text-primary)', outline: 'none',
+              }}
+              onFocus={e => (e.target.style.borderColor = 'var(--accent)', e.target.style.boxShadow = '0 0 0 3px rgba(196,82,58,0.12)')}
+              onBlur={e => (e.target.style.borderColor = 'var(--border-default)', e.target.style.boxShadow = 'none')}
+            />
+          )}
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button id="btn-submit-answers" type="submit" disabled={isSubmitting} className="btn-primary"
+          style={{ padding: '14px 40px', fontSize: '1rem', gap: 10 }}>
+          {isSubmitting
+            ? <Loader2 style={{ width: 18, height: 18, animation: 'spin 0.8s linear infinite' }} />
+            : <>{submitLabel} <Send style={{ width: 16, height: 16 }} /></>
+          }
+        </button>
+      </div>
+    </form>
   );
 }

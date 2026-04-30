@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSession, joinSessionByCode } from '@/src/lib/services/session';
-import { Users, Plus, KeyRound, Loader2 } from 'lucide-react';
+import { Users, Plus, KeyRound, Loader2, ArrowRight } from 'lucide-react';
 import { useLanguage } from '@/src/lib/i18n';
 
 export default function Home() {
@@ -18,16 +18,12 @@ export default function Home() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    
     setIsLoading(true);
     setError('');
-    
     try {
       const { sessionId, hostId } = await createSession(name);
-      // We can store the user's ID in localStorage or state management in a real app
       localStorage.setItem('knewyou_user_id', hostId);
       localStorage.setItem('knewyou_user_name', name);
-      
       router.push(`/lobby/${sessionId}`);
     } catch (err) {
       console.error(err);
@@ -39,10 +35,8 @@ export default function Home() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !sessionCode.trim()) return;
-    
     setIsLoading(true);
     setError('');
-    
     try {
       const result = await joinSessionByCode(sessionCode, name);
       if (result) {
@@ -61,138 +55,227 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-primary-600/30 rounded-full blur-[128px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-secondary-500/20 rounded-full blur-[128px]"></div>
-      </div>
+    <main
+      className="relative min-h-screen flex flex-col items-center justify-center p-6"
+      style={{ zIndex: 1 }}
+    >
+      {/* ── Hero section ─────────────────────────────── */}
+      <div className="w-full max-w-lg anim-fade-up" style={{ animationDelay: '0ms' }}>
 
-      <div className="w-full max-w-md animate-in fade-in zoom-in duration-500">
-        <div className="text-center mb-10">
-          <h1 className="text-6xl font-black tracking-tighter text-gradient mb-4">
+        {/* Wordmark */}
+        <div className="text-center mb-12">
+          <p
+            className="text-xs font-semibold tracking-[0.18em] uppercase mb-5"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Social · Party Game
+          </p>
+          <h1
+            className="text-display text-6xl mb-5"
+            style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}
+          >
             KnewYou
           </h1>
-          <p className="text-slate-400 text-lg">
+          <p
+            className="text-lg leading-relaxed"
+            style={{ color: 'var(--text-secondary)', maxWidth: '30ch', margin: '0 auto' }}
+          >
             {t('subtitle')}
           </p>
         </div>
 
-        <div className="glass-card p-8">
-          <div className="flex p-1 bg-white/5 rounded-xl mb-8">
-            <button
-              onClick={() => { setActiveTab('join'); setError(''); }}
-              className={`flex-1 py-3 text-sm font-semibold rounded-lg transition-all ${
-                activeTab === 'join' 
-                  ? 'bg-white/10 text-white shadow-sm' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {t('join')}
-            </button>
-            <button
-              onClick={() => { setActiveTab('create'); setError(''); }}
-              className={`flex-1 py-3 text-sm font-semibold rounded-lg transition-all ${
-                activeTab === 'create' 
-                  ? 'bg-white/10 text-white shadow-sm' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {t('createGame')}
-            </button>
+        {/* ── Card ─────────────────────────────────────── */}
+        <div className="paper-card overflow-hidden" style={{ animationDelay: '80ms' }}>
+
+          {/* Tab bar */}
+          <div
+            style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border-muted)',
+            }}
+          >
+            {(['join', 'create'] as const).map((tab) => {
+              const active = activeTab === tab;
+              const label = tab === 'join' ? t('join') : t('createGame');
+              return (
+                <button
+                  key={tab}
+                  id={`tab-${tab}`}
+                  onClick={() => { setActiveTab(tab); setError(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '16px 20px',
+                    fontSize: '0.9rem',
+                    fontWeight: active ? '600' : '400',
+                    color: active ? 'var(--accent)' : 'var(--text-muted)',
+                    background: active ? 'var(--accent-light)' : 'transparent',
+                    borderBottom: active
+                      ? '2px solid var(--accent)'
+                      : '2px solid transparent',
+                    transition: 'all 0.18s ease',
+                    cursor: 'pointer',
+                    marginBottom: '-1px',
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
-          {activeTab === 'join' ? (
-            <form onSubmit={handleJoin} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  {t('yourName')}
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Users className="h-5 w-5 text-slate-500" />
-                  </div>
+          {/* Form body */}
+          <div style={{ padding: '32px' }}>
+            {activeTab === 'join' ? (
+              <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <FormField label={t('yourName')} icon={<Users size={16} />}>
                   <input
+                    id="input-join-name"
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-xl leading-5 bg-black/20 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all sm:text-sm"
+                    className="paper-input"
                     placeholder={t('namePlaceholder')}
+                    style={{ paddingLeft: '38px' }}
                   />
-                </div>
-              </div>
+                </FormField>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  {t('sessionCode')}
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <KeyRound className="h-5 w-5 text-slate-500" />
-                  </div>
+                <FormField label={t('sessionCode')} icon={<KeyRound size={16} />}>
                   <input
+                    id="input-join-code"
                     type="text"
                     required
                     value={sessionCode}
                     onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                    className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-xl leading-5 bg-black/20 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all sm:text-sm uppercase"
+                    className="paper-input"
                     placeholder={t('codePlaceholder')}
                     maxLength={6}
+                    style={{ paddingLeft: '38px', letterSpacing: '0.2em', fontWeight: 600, fontSize: '1rem' }}
                   />
-                </div>
-              </div>
+                </FormField>
 
-              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                {error && <ErrorMessage message={error} />}
 
-              <button
-                type="submit"
-                disabled={isLoading || !name.trim() || !sessionCode.trim()}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : t('enterRoom')}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleCreate} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  {t('yourNameHost')}
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Users className="h-5 w-5 text-slate-500" />
-                  </div>
+                <button
+                  id="btn-join"
+                  type="submit"
+                  disabled={isLoading || !name.trim() || !sessionCode.trim()}
+                  className="btn-primary"
+                  style={{ width: '100%', marginTop: '4px', paddingTop: '14px', paddingBottom: '14px' }}
+                >
+                  {isLoading
+                    ? <Loader2 size={18} className="animate-spin" />
+                    : <>{t('enterRoom')} <ArrowRight size={16} /></>
+                  }
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <FormField label={t('yourNameHost')} icon={<Users size={16} />}>
                   <input
+                    id="input-create-name"
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-xl leading-5 bg-black/20 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all sm:text-sm"
+                    className="paper-input"
                     placeholder={t('namePlaceholder')}
+                    style={{ paddingLeft: '38px' }}
                   />
-                </div>
-              </div>
+                </FormField>
 
-              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                {error && <ErrorMessage message={error} />}
 
-              <button
-                type="submit"
-                disabled={isLoading || !name.trim()}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin h-5 w-5" />
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-5 w-5" />
-                    {t('createNewSession')}
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+                <button
+                  id="btn-create"
+                  type="submit"
+                  disabled={isLoading || !name.trim()}
+                  className="btn-primary"
+                  style={{ width: '100%', marginTop: '4px', paddingTop: '14px', paddingBottom: '14px' }}
+                >
+                  {isLoading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <><Plus size={16} /> {t('createNewSession')}</>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
+
+        {/* Footer note */}
+        <p
+          className="text-center mt-8 text-sm"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          No registration needed · Play instantly
+        </p>
       </div>
     </main>
+  );
+}
+
+/* ── Sub-components ────────────────────────────────── */
+
+function FormField({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        style={{
+          display: 'block',
+          fontSize: '0.8125rem',
+          fontWeight: 600,
+          color: 'var(--text-secondary)',
+          marginBottom: '6px',
+          letterSpacing: '0.01em',
+        }}
+      >
+        {label}
+      </label>
+      <div style={{ position: 'relative' }}>
+        <span
+          style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          {icon}
+        </span>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ErrorMessage({ message }: { message: string }) {
+  return (
+    <p
+      style={{
+        fontSize: '0.875rem',
+        color: 'var(--error)',
+        background: 'var(--error-light)',
+        border: '1px solid var(--accent-muted)',
+        borderRadius: '8px',
+        padding: '10px 14px',
+      }}
+    >
+      {message}
+    </p>
   );
 }

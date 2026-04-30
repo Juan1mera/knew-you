@@ -8,15 +8,10 @@ export default async function PlayPage({
   const { id } = await params;
 
   return (
-    <div className="min-h-screen p-4 flex flex-col items-center justify-center">
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary-600/20 rounded-full blur-[128px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-secondary-500/20 rounded-full blur-[128px]"></div>
-      </div>
-
-      <div className="w-full max-w-4xl mx-auto">
+    <main style={{ minHeight: '100vh', padding: '48px 24px 64px', position: 'relative', zIndex: 1 }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <GameClient sessionId={id} />
       </div>
-    </div>
+    </main>
   );
 }

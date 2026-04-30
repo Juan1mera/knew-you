@@ -14,18 +14,15 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get current user id from localStorage
     const storedId = localStorage.getItem('knewyou_user_id');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentUserId(storedId);
   }, []);
 
   useEffect(() => {
-
     const unsubscribe = subscribeToSession(sessionId, (sessionData) => {
       if (sessionData) {
         setSession(sessionData);
@@ -34,7 +31,6 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [sessionId]);
 
@@ -63,27 +59,32 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
     }
   };
 
+  /* ── Loading ──────────────────────────────────── */
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 font-medium">{t('connectingToRoom')}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', gap: '16px' }}>
+        <div
+          style={{
+            width: 40, height: 40,
+            border: '3px solid var(--border-default)',
+            borderTopColor: 'var(--accent)',
+            borderRadius: '50%',
+          }}
+          className="animate-spin"
+        />
+        <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('connectingToRoom')}</p>
       </div>
     );
   }
 
+  /* ── Error ────────────────────────────────────── */
   if (error || !session) {
     return (
-      <div className="glass-card p-8 text-center max-w-md mx-auto">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">{t('error')}</h2>
-        <p className="text-slate-400 mb-6">{error}</p>
-        <button 
-          onClick={() => router.push('/')}
-          className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-medium"
-        >
-          {t('backToHome')}
-        </button>
+      <div className="paper-card" style={{ padding: '48px', textAlign: 'center', maxWidth: '420px', margin: '0 auto' }}>
+        <AlertCircle style={{ width: 48, height: 48, color: 'var(--error)', margin: '0 auto 20px' }} />
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>{t('error')}</h2>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '28px' }}>{error}</p>
+        <button className="btn-ghost" onClick={() => router.push('/')}>{t('backToHome')}</button>
       </div>
     );
   }
@@ -91,75 +92,173 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
   const isHost = currentUserId && session.host_id === currentUserId;
 
   return (
-    <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="animate-in fade-in duration-500" style={{ width: '100%' }}>
+
+      {/* ── Header ───────────────────────────────── */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+        marginBottom: '40px',
+      }}>
         <div>
-          <h1 className="text-4xl font-black text-white mb-2">{t('lobbyTitle')}</h1>
-          <p className="text-slate-400">
-            {t('lobbySubtitle')}
-          </p>
+          <p className="tag" style={{ marginBottom: '12px' }}>{t('lobbyTitle')}</p>
+          <h1
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              fontSize: '2.75rem',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              lineHeight: 1.15,
+              marginBottom: '8px',
+            }}
+          >
+            {t('lobbyTitle')}
+          </h1>
+          <p style={{ color: 'var(--text-muted)' }}>{t('lobbySubtitle')}</p>
         </div>
 
-        <div className="glass px-6 py-4 rounded-2xl flex flex-col items-center min-w-[200px]">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-            {t('inviteCode')}
-          </span>
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-black tracking-widest text-primary-400">
+        {/* Code pill */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '16px',
+            padding: '16px 24px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-sm)',
+            alignSelf: 'flex-start',
+          }}
+        >
+          <div>
+            <span style={{
+              display: 'block',
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              marginBottom: '2px',
+            }}>
+              {t('inviteCode')}
+            </span>
+            <span style={{
+              fontSize: '2rem',
+              fontWeight: 800,
+              letterSpacing: '0.18em',
+              color: 'var(--accent)',
+              fontFamily: 'var(--font-sans)',
+            }}>
               {session.shortCode}
             </span>
-            <button 
-              onClick={copyCode}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-              title="Copiar código"
-            >
-              {copied ? <CheckCircle2 className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
-            </button>
           </div>
+          <button
+            id="btn-copy-code"
+            onClick={copyCode}
+            style={{
+              padding: '8px',
+              background: copied ? 'var(--success-light)' : 'var(--bg-subtle)',
+              border: '1px solid var(--border-muted)',
+              borderRadius: '8px',
+              color: copied ? 'var(--success)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.15s',
+            }}
+            title="Copiar código"
+          >
+            {copied
+              ? <CheckCircle2 style={{ width: 18, height: 18 }} />
+              : <Copy style={{ width: 18, height: 18 }} />
+            }
+          </button>
         </div>
       </div>
 
-      <div className="glass-card overflow-hidden mb-8">
-        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary-400" />
-            <h2 className="text-lg font-bold text-white">{t('players')}</h2>
+      {/* ── Players card ─────────────────────────── */}
+      <div className="paper-card" style={{ overflow: 'hidden', marginBottom: '32px' }}>
+        {/* Card header */}
+        <div style={{
+          padding: '16px 24px',
+          borderBottom: '1px solid var(--border-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'var(--bg-subtle)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users style={{ width: 18, height: 18, color: 'var(--accent)' }} />
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('players')}</span>
           </div>
-          <span className="px-3 py-1 bg-primary-500/20 text-primary-300 rounded-full text-sm font-semibold">
+          <span className="tag">
             {session.participants.length} {t('connected')}
           </span>
         </div>
-        
-        <div className="p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+
+        {/* Players grid */}
+        <div style={{ padding: '24px' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: '12px',
+          }}>
             {session.participants.map((participant: Participant) => {
               const isMe = participant.id === currentUserId;
-              
               return (
-                <div 
-                  key={participant.id} 
-                  className={`
-                    relative overflow-hidden p-4 rounded-xl border flex items-center gap-3 transition-all
-                    ${isMe 
-                      ? 'bg-gradient-to-br from-primary-900/40 to-fuchsia-900/40 border-primary-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]' 
-                      : 'bg-white/5 border-white/10 hover:border-white/20'
-                    }
-                  `}
+                <div
+                  key={participant.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: isMe ? 'var(--accent-light)' : 'var(--bg-subtle)',
+                    border: `1px solid ${isMe ? 'var(--accent-muted)' : 'var(--border-muted)'}`,
+                    transition: 'border-color 0.15s',
+                  }}
                 >
-                  <div className={`
-                    w-10 h-10 rounded-full flex items-center justify-center shrink-0
-                    ${participant.isHost ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-white'}
-                  `}>
-                    {participant.isHost ? <Crown className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: participant.isHost ? '#fef3e8' : 'var(--bg-card)',
+                    border: `1px solid ${participant.isHost ? '#f0d0a8' : 'var(--border-default)'}`,
+                    color: participant.isHost ? 'var(--warning)' : 'var(--text-secondary)',
+                    flexShrink: 0,
+                  }}>
+                    {participant.isHost
+                      ? <Crown style={{ width: 16, height: 16 }} />
+                      : <User style={{ width: 16, height: 16 }} />
+                    }
                   </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      color: 'var(--text-primary)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
                       {participant.name}
-                      {isMe && <span className="ml-2 text-xs font-normal text-primary-300">({t('you')})</span>}
+                      {isMe && (
+                        <span style={{ color: 'var(--accent)', fontWeight: 400, fontSize: '0.75rem', marginLeft: 6 }}>
+                          ({t('you')})
+                        </span>
+                      )}
                     </p>
                     {participant.isHost && (
-                      <p className="text-xs text-amber-400/80 font-medium">{t('host')}</p>
+                      <p style={{ fontSize: '0.6875rem', color: 'var(--warning)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        {t('host')}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -169,20 +268,41 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      {/* ── Actions ──────────────────────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         {isHost ? (
           <button
+            id="btn-start-game"
             onClick={handleStartGame}
             disabled={session.participants.length < 2}
-            className="flex items-center justify-center py-4 px-8 border border-transparent rounded-xl shadow-lg shadow-primary-500/20 text-base font-bold text-white bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-500 hover:to-secondary-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+            className="btn-primary"
+            style={{ padding: '14px 32px', fontSize: '1rem' }}
           >
-            <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform" />
+            <Play style={{ width: 18, height: 18 }} />
             {t('startGame')}
           </button>
         ) : (
-          <div className="px-6 py-4 glass rounded-xl text-slate-300 flex items-center gap-3">
-            <div className="w-4 h-4 border-2 border-primary-500/50 border-t-primary-500 rounded-full animate-spin"></div>
-            <span>{t('waitingForHost')}</span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '14px 24px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-muted)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-muted)',
+            fontSize: '0.9rem',
+          }}>
+            <div
+              style={{
+                width: 16, height: 16,
+                border: '2px solid var(--border-default)',
+                borderTopColor: 'var(--accent)',
+                borderRadius: '50%',
+              }}
+              className="animate-spin"
+            />
+            {t('waitingForHost')}
           </div>
         )}
       </div>
