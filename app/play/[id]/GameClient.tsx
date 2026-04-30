@@ -13,9 +13,11 @@ import {
 } from '@/src/lib/services/test';
 import { Session, Test, Question, PlayerScore } from '@/src/types';
 import { Loader2, AlertCircle, CheckCircle, Send, Users, UserCircle2, ArrowLeft, Trophy, Crown, Medal, XCircle, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '@/src/lib/i18n';
 
 export default function GameClient({ sessionId }: { sessionId: string }) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [session, setSession] = useState<Session | null>(null);
   const [test, setTest] = useState<Test | null>(null);
   
@@ -54,7 +56,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
 
         setLoading(false);
       } else {
-        setError('Sesión no encontrada o ha sido eliminada.');
+        setError(t('sessionNotFound'));
         setLoading(false);
       }
     });
@@ -151,7 +153,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     
     const unanswered = test.questions.filter(q => !answers[q.id]);
     if (unanswered.length > 0) {
-      alert('Por favor responde todas las preguntas.');
+      alert(t('pleaseAnswerAll'));
       return;
     }
 
@@ -161,7 +163,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
       setHasSubmitted(true);
     } catch (err) {
       console.error(err);
-      alert('Hubo un error al enviar tus respuestas.');
+      alert(t('errorSubmitting'));
     } finally {
       setIsSubmitting(false);
     }
@@ -173,7 +175,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     
     const unanswered = test.questions.filter(q => !answers[q.id]);
     if (unanswered.length > 0) {
-      alert('Por favor responde todas las preguntas.');
+      alert(t('pleaseAnswerAll'));
       return;
     }
 
@@ -185,7 +187,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
       setAnswers({}); // reset answers for the next target
     } catch (err) {
       console.error(err);
-      alert('Hubo un error al enviar tus respuestas.');
+      alert(t('errorSubmitting'));
     } finally {
       setIsSubmitting(false);
     }
@@ -195,7 +197,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     return (
       <div className="flex flex-col items-center justify-center p-12">
         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-        <p className="text-slate-400 font-medium">Cargando partida...</p>
+        <p className="text-slate-400 font-medium">{t('loadingGame')}</p>
       </div>
     );
   }
@@ -204,13 +206,13 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     return (
       <div className="glass-card p-8 text-center max-w-md mx-auto">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Error</h2>
+        <h2 className="text-xl font-bold text-white mb-2">{t('error')}</h2>
         <p className="text-slate-400 mb-6">{error}</p>
         <button 
           onClick={() => router.push('/')}
           className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-medium"
         >
-          Volver al Inicio
+          {t('backToHome')}
         </button>
       </div>
     );
@@ -222,7 +224,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
       return (
         <div className="flex flex-col items-center justify-center p-12">
           <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-          <p className="text-slate-400 font-medium">Calculando resultados...</p>
+          <p className="text-slate-400 font-medium">{t('calculatingResults')}</p>
         </div>
       );
     }
@@ -234,9 +236,9 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto space-y-12 pb-12">
         <div className="text-center">
           <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-6" />
-          <h1 className="text-5xl font-black text-white mb-4">Resultados Finales</h1>
+          <h1 className="text-5xl font-black text-white mb-4">{t('finalResults')}</h1>
           <p className="text-xl text-slate-300">
-            Veamos quién conoce mejor al grupo.
+            {t('finalResultsSubtitle')}
           </p>
         </div>
 
@@ -245,7 +247,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
           <div className="bg-white/5 px-6 py-4 border-b border-white/5">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
               <Medal className="w-6 h-6 text-primary-400" />
-              Tabla de Posiciones
+              {t('leaderboard')}
             </h2>
           </div>
           <div className="p-6">
@@ -275,13 +277,13 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
                     </div>
                     <div>
                       <span className="text-xl font-bold text-white block">
-                        {player.name} {player.user_id === currentUserId && <span className="text-sm font-normal text-primary-300 ml-2">(Tú)</span>}
+                        {player.name} {player.user_id === currentUserId && <span className="text-sm font-normal text-primary-300 ml-2">({t('you')})</span>}
                       </span>
                     </div>
                   </div>
                   <div className="z-10 text-right">
                     <span className="text-3xl font-black text-white">{player.score}</span>
-                    <span className="text-sm text-slate-400 block -mt-1">Puntos</span>
+                    <span className="text-sm text-slate-400 block -mt-1">{t('points')}</span>
                   </div>
                 </div>
               ))}
@@ -295,7 +297,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
             <div className="bg-white/5 px-6 py-4 border-b border-white/5">
               <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                 <Users className="w-6 h-6 text-secondary-400" />
-                Tu Desglose
+                {t('yourBreakdown')}
               </h2>
             </div>
             <div className="p-6">
@@ -315,7 +317,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
                         ) : (
                           <XCircle className="w-5 h-5 text-red-400 shrink-0" />
                         )}
-                        <h4 className="font-bold text-white">Sobre {match.target_name}</h4>
+                        <h4 className="font-bold text-white">{t('about')} {match.target_name}</h4>
                       </div>
                       <p className="text-slate-300 text-sm mb-3">
                         {getQuestionText(match.question_id)}
@@ -323,13 +325,13 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">Tu Adivinanza</span>
+                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">{t('yourGuess')}</span>
                           <span className={`font-medium ${match.is_correct ? 'text-green-300' : 'text-red-300'}`}>
                             {match.guessed_answer}
                           </span>
                         </div>
                         <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">Respuesta Real</span>
+                          <span className="text-xs text-slate-400 uppercase tracking-wider block mb-1">{t('realAnswer')}</span>
                           <span className="font-medium text-white">
                             {match.correct_answer}
                           </span>
@@ -348,7 +350,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
             onClick={() => router.push('/')}
             className="inline-flex items-center justify-center py-4 px-10 border border-white/10 rounded-xl text-lg font-bold text-white bg-white/5 hover:bg-white/10 transition-colors"
           >
-            Volver al Inicio y Jugar de Nuevo
+            {t('backToHomeAndPlayAgain')}
           </button>
         </div>
       </div>
@@ -361,7 +363,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
       return (
         <div className="flex flex-col items-center justify-center p-12">
           <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-          <p className="text-slate-400 font-medium">Preparando ronda...</p>
+          <p className="text-slate-400 font-medium">{t('preparingRound')}</p>
         </div>
       );
     }
@@ -373,13 +375,13 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
       return (
         <div className="glass-card p-12 text-center animate-in zoom-in duration-500 max-w-md mx-auto">
           <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-6" />
-          <h2 className="text-3xl font-black text-white mb-4">¡Ronda Completada!</h2>
+          <h2 className="text-3xl font-black text-white mb-4">{t('roundCompleted')}</h2>
           <p className="text-slate-300 mb-8">
-            Has adivinado las respuestas de todos. Esperando a que el resto de jugadores termine...
+            {t('roundCompletedSubtitle')}
           </p>
           <div className="flex justify-center items-center gap-3 text-primary-400 bg-primary-500/10 py-3 px-6 rounded-xl w-max mx-auto">
             <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="font-semibold">Esperando a los demás...</span>
+            <span className="font-semibold">{t('waitingForOthers')}</span>
           </div>
         </div>
       );
@@ -390,11 +392,11 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
           <div className="mb-8 text-center">
             <span className="inline-block px-4 py-1.5 rounded-full bg-secondary-500/20 text-secondary-300 font-bold text-sm tracking-wider uppercase mb-4 shadow-[0_0_15px_rgba(236,72,153,0.2)]">
-              Fase 2: Conociendo a los Demás
+              {t('phase2Title')}
             </span>
-            <h1 className="text-4xl font-black text-white mb-2">Selecciona un Jugador</h1>
+            <h1 className="text-4xl font-black text-white mb-2">{t('selectPlayer')}</h1>
             <p className="text-lg text-slate-400">
-              Elige a uno de tus amigos para adivinar qué respondió en su test de autoevaluación.
+              {t('selectPlayerSubtitle')}
             </p>
           </div>
 
@@ -422,10 +424,10 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
                   {isDone ? (
                     <div className="flex items-center gap-2 text-green-400">
                       <CheckCircle className="w-6 h-6" />
-                      <span className="font-semibold hidden sm:inline">Completado</span>
+                      <span className="font-semibold hidden sm:inline">{t('completed')}</span>
                     </div>
                   ) : (
-                    <span className="text-primary-400 font-semibold">Adivinar</span>
+                    <span className="text-primary-400 font-semibold">{t('guess')}</span>
                   )}
                 </button>
               );
@@ -451,11 +453,11 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <span className="inline-block px-4 py-1.5 rounded-full bg-secondary-500/20 text-secondary-300 font-bold text-sm tracking-wider uppercase mb-4 shadow-[0_0_15px_rgba(236,72,153,0.2)]">
-            Fase 2
+            {t('phase2')}
           </span>
-          <h1 className="text-4xl font-black text-white mb-2">Adivinando sobre {targetUser?.name}</h1>
+          <h1 className="text-4xl font-black text-white mb-2">{t('guessingAbout')} {targetUser?.name}</h1>
           <p className="text-lg text-slate-400">
-            ¿Qué crees que respondió {targetUser?.name}? ¡Trata de ponerte en sus zapatos!
+            {t('guessInstructions', { name: targetUser?.name || '' })}
           </p>
         </div>
 
@@ -505,7 +507,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
               {question.type === 'free_response' && (
                 <textarea
                   rows={3}
-                  placeholder={`Escribe lo que crees que ${targetUser?.name} respondió...`}
+                  placeholder={t('typeYourGuess', { name: targetUser?.name || '' })}
                   value={answers[question.id] || ''}
                   onChange={(e) => handleAnswerChange(question.id, e.target.value)}
                   className="w-full p-4 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all resize-none"
@@ -524,7 +526,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
                 <Loader2 className="w-6 h-6 animate-spin" />
               ) : (
                 <>
-                  Confirmar mis respuestas
+                  {t('confirmAnswers')}
                   <Send className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
@@ -540,7 +542,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     return (
       <div className="flex flex-col items-center justify-center p-12">
         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-        <p className="text-slate-400 font-medium">Cargando preguntas...</p>
+        <p className="text-slate-400 font-medium">{t('loadingQuestions')}</p>
       </div>
     );
   }
@@ -549,13 +551,13 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     return (
       <div className="glass-card p-12 text-center animate-in zoom-in duration-500 max-w-md mx-auto">
         <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-6" />
-        <h2 className="text-3xl font-black text-white mb-4">¡Respuestas Enviadas!</h2>
+        <h2 className="text-3xl font-black text-white mb-4">{t('answersSubmitted')}</h2>
         <p className="text-slate-300 mb-8">
-          Tus respuestas están guardadas de forma segura. Por favor, espera a que los demás jugadores terminen para avanzar a la siguiente fase.
+          {t('answersSubmittedSubtitle')}
         </p>
         <div className="flex justify-center items-center gap-3 text-primary-400 bg-primary-500/10 py-3 px-6 rounded-xl w-max mx-auto">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="font-semibold">Esperando a los demás...</span>
+          <span className="font-semibold">{t('waitingForOthers')}</span>
         </div>
       </div>
     );
@@ -565,11 +567,11 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-8 text-center">
         <span className="inline-block px-4 py-1.5 rounded-full bg-primary-500/20 text-primary-300 font-bold text-sm tracking-wider uppercase mb-4 shadow-[0_0_15px_rgba(139,92,246,0.2)]">
-          Fase 1: Autoevaluación
+          {t('phase1')}
         </span>
         <h1 className="text-4xl font-black text-white mb-2">{test.title}</h1>
         <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-          Responde a las siguientes preguntas pensando única y exclusivamente en **ti mismo**. Más adelante, los demás tendrán que adivinar qué respondiste aquí. ¡Sé honesto!
+          {t('phase1Instructions')}
         </p>
       </div>
 
@@ -619,7 +621,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
             {question.type === 'free_response' && (
               <textarea
                 rows={3}
-                placeholder="Escribe tu respuesta aquí..."
+                placeholder={t('typeYourAnswer')}
                 value={answers[question.id] || ''}
                 onChange={(e) => handleAnswerChange(question.id, e.target.value)}
                 className="w-full p-4 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all resize-none"
@@ -638,7 +640,7 @@ export default function GameClient({ sessionId }: { sessionId: string }) {
               <Loader2 className="w-6 h-6 animate-spin" />
             ) : (
               <>
-                Confirmar mis respuestas
+                {t('confirmAnswers')}
                 <Send className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </>
             )}

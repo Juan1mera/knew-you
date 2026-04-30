@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { subscribeToSession, startGame } from '@/src/lib/services/session';
 import { Session, Participant } from '@/src/types';
 import { Users, Copy, CheckCircle2, Play, AlertCircle, Crown, User } from 'lucide-react';
+import { useLanguage } from '@/src/lib/i18n';
 
 export default function LobbyClient({ sessionId }: { sessionId: string }) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,7 +30,7 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
       if (sessionData) {
         setSession(sessionData);
       } else {
-        setError('Sesión no encontrada o ha sido eliminada.');
+        setError(t('sessionNotFound'));
       }
       setLoading(false);
     });
@@ -56,7 +58,7 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
       await startGame(sessionId);
     } catch (err) {
       console.error(err);
-      setError('Error al iniciar el juego.');
+      setError(t('errorStartGame'));
       setLoading(false);
     }
   };
@@ -65,7 +67,7 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
     return (
       <div className="flex flex-col items-center justify-center p-12">
         <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 font-medium">Conectando a la sala...</p>
+        <p className="text-slate-400 font-medium">{t('connectingToRoom')}</p>
       </div>
     );
   }
@@ -74,13 +76,13 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
     return (
       <div className="glass-card p-8 text-center max-w-md mx-auto">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Error</h2>
+        <h2 className="text-xl font-bold text-white mb-2">{t('error')}</h2>
         <p className="text-slate-400 mb-6">{error}</p>
         <button 
           onClick={() => router.push('/')}
           className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-medium"
         >
-          Volver al Inicio
+          {t('backToHome')}
         </button>
       </div>
     );
@@ -92,15 +94,15 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-black text-white mb-2">Sala de Espera</h1>
+          <h1 className="text-4xl font-black text-white mb-2">{t('lobbyTitle')}</h1>
           <p className="text-slate-400">
-            Esperando a que los demás jugadores se unan...
+            {t('lobbySubtitle')}
           </p>
         </div>
 
         <div className="glass px-6 py-4 rounded-2xl flex flex-col items-center min-w-[200px]">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-            Código de Invitación
+            {t('inviteCode')}
           </span>
           <div className="flex items-center gap-3">
             <span className="text-3xl font-black tracking-widest text-primary-400">
@@ -121,10 +123,10 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
         <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary-400" />
-            <h2 className="text-lg font-bold text-white">Jugadores</h2>
+            <h2 className="text-lg font-bold text-white">{t('players')}</h2>
           </div>
           <span className="px-3 py-1 bg-primary-500/20 text-primary-300 rounded-full text-sm font-semibold">
-            {session.participants.length} conectados
+            {session.participants.length} {t('connected')}
           </span>
         </div>
         
@@ -154,10 +156,10 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-white truncate">
                       {participant.name}
-                      {isMe && <span className="ml-2 text-xs font-normal text-primary-300">(Tú)</span>}
+                      {isMe && <span className="ml-2 text-xs font-normal text-primary-300">({t('you')})</span>}
                     </p>
                     {participant.isHost && (
-                      <p className="text-xs text-amber-400/80 font-medium">Host</p>
+                      <p className="text-xs text-amber-400/80 font-medium">{t('host')}</p>
                     )}
                   </div>
                 </div>
@@ -175,12 +177,12 @@ export default function LobbyClient({ sessionId }: { sessionId: string }) {
             className="flex items-center justify-center py-4 px-8 border border-transparent rounded-xl shadow-lg shadow-primary-500/20 text-base font-bold text-white bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-500 hover:to-secondary-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
           >
             <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform" />
-            Comenzar Juego (Fase 1)
+            {t('startGame')}
           </button>
         ) : (
           <div className="px-6 py-4 glass rounded-xl text-slate-300 flex items-center gap-3">
             <div className="w-4 h-4 border-2 border-primary-500/50 border-t-primary-500 rounded-full animate-spin"></div>
-            <span>Esperando a que el Host inicie el juego...</span>
+            <span>{t('waitingForHost')}</span>
           </div>
         )}
       </div>

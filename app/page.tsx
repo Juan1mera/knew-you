@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSession, joinSessionByCode } from '@/src/lib/services/session';
 import { Users, Plus, KeyRound, Loader2 } from 'lucide-react';
+import { useLanguage } from '@/src/lib/i18n';
 
 export default function Home() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'join' | 'create'>('join');
   const [name, setName] = useState('');
   const [sessionCode, setSessionCode] = useState('');
@@ -29,7 +31,7 @@ export default function Home() {
       router.push(`/lobby/${sessionId}`);
     } catch (err) {
       console.error(err);
-      setError('Error al crear la sesión. Intenta de nuevo.');
+      setError(t('errorCreateSession'));
       setIsLoading(false);
     }
   };
@@ -48,12 +50,12 @@ export default function Home() {
         localStorage.setItem('knewyou_user_name', name);
         router.push(`/lobby/${result.sessionId}`);
       } else {
-        setError('Código de sesión inválido.');
+        setError(t('invalidSessionCode'));
         setIsLoading(false);
       }
     } catch (err) {
       console.error(err);
-      setError('Error al unirse a la sesión.');
+      setError(t('errorJoinSession'));
       setIsLoading(false);
     }
   };
@@ -71,7 +73,7 @@ export default function Home() {
             KnewYou
           </h1>
           <p className="text-slate-400 text-lg">
-            ¿Qué tanto te conocen tus amigos?
+            {t('subtitle')}
           </p>
         </div>
 
@@ -85,7 +87,7 @@ export default function Home() {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Unirse
+              {t('join')}
             </button>
             <button
               onClick={() => { setActiveTab('create'); setError(''); }}
@@ -95,7 +97,7 @@ export default function Home() {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Crear Juego
+              {t('createGame')}
             </button>
           </div>
 
@@ -103,7 +105,7 @@ export default function Home() {
             <form onSubmit={handleJoin} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Tu Nombre
+                  {t('yourName')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -115,14 +117,14 @@ export default function Home() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-xl leading-5 bg-black/20 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all sm:text-sm"
-                    placeholder="Ej. Carlos"
+                    placeholder={t('namePlaceholder')}
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Código de la Sesión
+                  {t('sessionCode')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -134,7 +136,7 @@ export default function Home() {
                     value={sessionCode}
                     onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
                     className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-xl leading-5 bg-black/20 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all sm:text-sm uppercase"
-                    placeholder="Ej. A8F3B"
+                    placeholder={t('codePlaceholder')}
                     maxLength={6}
                   />
                 </div>
@@ -147,14 +149,14 @@ export default function Home() {
                 disabled={isLoading || !name.trim() || !sessionCode.trim()}
                 className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Entrar a la Sala'}
+                {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : t('enterRoom')}
               </button>
             </form>
           ) : (
             <form onSubmit={handleCreate} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Tu Nombre (Host)
+                  {t('yourNameHost')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -166,7 +168,7 @@ export default function Home() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-xl leading-5 bg-black/20 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all sm:text-sm"
-                    placeholder="Ej. Carlos"
+                    placeholder={t('namePlaceholder')}
                   />
                 </div>
               </div>
@@ -183,7 +185,7 @@ export default function Home() {
                 ) : (
                   <>
                     <Plus className="mr-2 h-5 w-5" />
-                    Crear Nueva Sesión
+                    {t('createNewSession')}
                   </>
                 )}
               </button>
