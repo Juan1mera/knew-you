@@ -10,56 +10,161 @@ import {
 } from 'firebase/firestore';
 import { Test, Answer, Participant, PlayerScore } from '@/src/types';
 
-const DEFAULT_TEST_ID = 'default_test_01';
+const DEFAULT_TEST_ID = 'default_test_02';
 
 const defaultTestContent: Test = {
   id: DEFAULT_TEST_ID,
   title: 'Conociéndonos Mejor',
   questions: [
+    // ── 1. Básicos ───────────────────────────────────
     {
-      id: 'q1',
-      type: 'multiple_choice',
-      text: '¿Cuál es tu plan ideal para un fin de semana?',
-      options: [
-        'Quedarme en casa viendo películas/series',
-        'Salir de fiesta con amigos',
-        'Ir a la naturaleza (playa, montaña, acampar)',
-        'Ir a un buen restaurante o evento cultural'
-      ]
+      id: 'q_color',
+      type: 'free_response',
+      text: '¿Cuál es tu color favorito?'
     },
     {
-      id: 'q2',
+      id: 'q_food',
+      type: 'free_response',
+      text: '¿Cuál es tu comida o plato favorito?'
+    },
+    {
+      id: 'q_place',
+      type: 'free_response',
+      text: '¿Cuál es tu lugar favorito en el mundo (ciudad, país o rincón especial)?'
+    },
+    {
+      id: 'q_animal',
+      type: 'free_response',
+      text: '¿Cuál es tu animal favorito?'
+    },
+
+    // ── 2. Personalidad y Fantasía ────────────────────
+    {
+      id: 'q_superpower',
       type: 'multiple_choice',
-      text: 'Si pudieras tener un superpoder, ¿cuál elegirías?',
+      text: 'Si pudiera elegir un superpoder, ¿cuál sería?',
       options: [
         'Volar',
-        'Leer la mente',
         'Invisibilidad',
-        'Teletransportación'
+        'Teletransportación',
+        'Leer la mente'
       ]
     },
     {
-      id: 'q3',
+      id: 'q_travel',
       type: 'free_response',
-      text: '¿Cuál es tu mayor fobia o miedo irracional?'
+      text: 'Si tuviera un boleto de avión abierto para cualquier país del mundo, ¿a dónde iría primero?'
+    },
+    {
+      id: 'q_friday',
+      type: 'multiple_choice',
+      text: '¿Qué prefiero un viernes por la noche?',
+      options: [
+        'Plan tranquilo: mantita, peli y cena en casa',
+        'Salir de casa: fiesta, restaurante o caminar por la ciudad'
+      ]
+    },
+
+    // ── 3. Gustos y Paladar ───────────────────────────
+    {
+      id: 'q_flavor',
+      type: 'multiple_choice',
+      text: 'Entre estos cuatro sabores, ¿cuál es mi top 1?',
+      options: [
+        'Dulce',
+        'Salado',
+        'Picante',
+        'Ácido'
+      ]
+    },
+    {
+      id: 'q_snack',
+      type: 'multiple_choice',
+      text: '¿Cuál es mi snack ideal para ver una película?',
+      options: [
+        'Palomitas / Popcorn',
+        'Chocolates o Gomitas',
+        'Nachos con queso'
+      ]
+    },
+    {
+      id: 'q_drink',
+      type: 'multiple_choice',
+      text: '¿Qué prefiero beber durante la comida?',
+      options: [
+        'Agua',
+        'Refresco / Soda',
+        'Jugo natural',
+        'Cerveza / Vino'
+      ]
+    },
+
+    // ── 4. Esto o Aquello ─────────────────────────────
+    {
+      id: 'q_sleep',
+      type: 'multiple_choice',
+      text: '¿Madrugar o trasnochar?',
+      options: ['Madrugar', 'Trasnochar']
+    },
+    {
+      id: 'q_nature',
+      type: 'multiple_choice',
+      text: '¿Playa o montaña?',
+      options: ['Playa', 'Montaña']
+    },
+    {
+      id: 'q_cook',
+      type: 'multiple_choice',
+      text: '¿Cocinar o pedir domicilio?',
+      options: ['Cocinar', 'Pedir domicilio']
+    },
+    {
+      id: 'q_content',
+      type: 'multiple_choice',
+      text: '¿Series o películas?',
+      options: ['Series', 'Películas']
+    },
+    {
+      id: 'q_pet',
+      type: 'multiple_choice',
+      text: '¿Perros o gatos?',
+      options: ['Perros', 'Gatos']
+    },
+    {
+      id: 'q_book',
+      type: 'multiple_choice',
+      text: '¿Libro físico o Kindle / Audiolibro?',
+      options: ['Libro físico', 'Kindle / Audiolibro']
+    },
+
+    // ── 5. El toque de "Expertos" ──────────────────────
+    {
+      id: 'q_closet',
+      type: 'free_response',
+      text: '¿Cuál es esa prenda de ropa que tengo en el closet, que casi nunca uso, pero que me niego a tirar?'
+    },
+    {
+      id: 'q_shopping',
+      type: 'free_response',
+      text: '¿Qué es lo que más me gusta comprar cuando voy a un centro comercial (aunque no lo necesite)?'
+    },
+    {
+      id: 'q_guilty',
+      type: 'free_response',
+      text: '¿Cuál es mi "gusto culposo"? (Esa canción o película que me da un poco de vergüenza admitir que me encanta)'
     }
   ]
 };
 
 /**
- * Gets the default test from Firestore. If it doesn't exist, it creates it.
+ * Gets the default test from Firestore.
+ * Always writes the latest local content (upsert) so question changes
+ * in code are reflected immediately without manual Firestore edits.
  */
 export const getDefaultTest = async (): Promise<Test> => {
   const testRef = doc(db, 'tests', DEFAULT_TEST_ID);
-  const testSnap = await getDoc(testRef);
-
-  if (!testSnap.exists()) {
-    // Create the default test
-    await setDoc(testRef, defaultTestContent);
-    return defaultTestContent;
-  }
-
-  return testSnap.data() as Test;
+  await setDoc(testRef, defaultTestContent);
+  return defaultTestContent;
 };
 
 export const getTestById = async (testId: string): Promise<Test | null> => {
